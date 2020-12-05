@@ -1,11 +1,14 @@
-#!/usr/bin/env python3
+# python3
 # -*- coding: utf-8 -*-
 """
 Created on Sun Nov 24 21:41:02 2019
 
 @author: yusheng
 """
-
+# ------------------------------------------------------------------------
+# required pacckages: NumPy, SciPy, openAI gym
+# written in the framwork of gym
+# ------------------------------------------------------------------------
 import gym
 from gym import spaces
 from gym.utils import seeding
@@ -21,33 +24,34 @@ class FishEvasionEnv(gym.Env):
     }
 
     def __init__(self, mode = 'first-order', dt = 0.1, bodylength = 5):
+        # size and mass parameters
         class param:
             a = np.repeat(bodylength,3)
             b = np.array([1,1,1])
             c = np.array([5,5,5])
             rho = 1000
         
+        # length non-dimensionalization 
         L_c = 2*np.sum(param.a)
         a = param.a/L_c
         b = param.b/L_c
         c = param.c/L_c
+
         self.a,self.b,self.c = a,b,c
         self.rho = param.rho
-#        M_c = 4/3*self.rho*np.sum(a*b*c)*np.pi
+        # characteristic mass
+        # M_c = 4/3*self.rho*np.sum(a*b*c)*np.pi
         
         self.m = a*b*c/np.sum(a*b*c)*0
         self.J = (1/5*(a**2+b**2) + a**2)*self.m
         self.__added_mass()
-#        self.reset()
         self.dt = dt
         self.oldpos = None
         
-#        high = np.array([np.finfo(np.float32).max, np.finfo(np.float32).max, np.finfo(np.float32).max, np.pi, np.pi])
+        # range of observtion variables
         high = np.array([np.finfo(np.float32).max, np.pi, np.pi])
-#        high = np.array([np.pi, np.pi])
-        
+        # create the observation space and the action space
         self.observation_space = spaces.Box(low=-high, high=high, dtype=np.float32)
-        
         self.action_space = spaces.Box(low = -1., high = 1., shape = (2,), dtype = np.float32)
 
         self.viewer = None
@@ -61,69 +65,48 @@ class FishEvasionEnv(gym.Env):
         terminal = False
         dt = self.dt
         self.oldpos = list(self.pos)
-#        if tstep != None:
-#            dt = tstep
-#        position_old = self.pos
+        # compute the fish nose position
         Xhead_old = self.pos[0] + np.cos(self.pos[2])*self.a[0] + np.cos(self.pos[2]+self.shape[1])*self.a[2]*2
+
         self.shapechange = action
+        # impose the contraint on the shape (angles cannot exceed 120 degrees):
         constraint_angle = 2*np.pi/3
         self.shapechange = np.clip(self.shapechange, (-constraint_angle - self.shape)/dt, (constraint_angle - self.shape)/dt)
         
-#        track = self.shape/np.linalg.norm(self.shape)
-#        self.shapechange[0] = track[1] + track[0] - self.shape[0]
-#        self.shapechange[1] = -track[0] + track[1] - self.shape[1]
+        # integrate the dynamics system
         options = {'rtol':1e-4,'atol':1e-8,'max_step': 1e-2}
-        
-
         sol = integrate.solve_ivp(self.__firstorderdt, (0,dt), self.pos, method='RK45', t_eval=None, dense_output=False, events=None, vectorized=False,**options)
-#        x = sol.y[0,:]
-#        y = sol.y[1,:]
-#        theta = sol.y[2,:]
-        
-#        import matplotlib.pyplot as plt
-#        fig,ax = plt.subplots()
-#        ax.plot(sol.t,x)
-#        plt.show()
-#        self.shape = np.clip(self.shape + self.shapechange*dt,-2*np.pi/3, 2*np.pi/3)
-        self.shape = self.shape + self.shapechange*dt
-        self.time = self.time + dt
+
+        self.shape = self.shape + self.shapechange*dt              # update the shape
+        self.time = self.time + dt                                 # update the time
         
         position_new = sol.y[:,-1]
-#        if position_new[-1] > np.pi:
-#            position_new[-1] -= 2*np.pi
-#        if position_new[-1] < -np.pi:
-#            position_new[-1] += 2*np.pi
-        
-        self.pos = position_new
-#        dX, dY, dTheta = position_new - position_old
+        self.pos = position_new                           # update the position
+
         dXhead = self.pos[0] + np.cos(self.pos[2])*self.a[0] + np.cos(self.pos[2]+self.shape[1])*self.a[2]*2 - Xhead_old
-        
-        terminal = self.__terminal()
-        """ for tracking        
-                talpha_1, talpha_2, tDalpha_1, tDalpha_2 = self.__prescribedAngle(dt+self.time, position = None)
-                track = self.shape/np.linalg.norm(self.shape)
-                track_vel = np.zeros_like(track)
-                track_vel[0] = self.shape[1]
-                track_vel[1] = -self.shape[0]
-                reward = -np.linalg.norm(self.shape-track)-np.linalg.norm(self.shapechange-track_vel)
-        """
-        reward = dXhead
-#        print(reward)
+        terminal = self.__terminal()                      # termination condition
+
+        reward = dXhead                        # compute the reward (displacement of fish nose in x direction)
         return self._get_obs(), reward, terminal, {}
-    def __firstorderdt(self,t,var):
+    def __firstorderdt(self,t,var):                   # mechanics
             m, ma1, ma2, J, Ja = self.m, self.ma1, self.ma2, self.J, self.Ja
             Dalpha_1, Dalpha_2 = self.shapechange
             alpha_1, alpha_2 = np.clip(self.shape + self.shapechange*t,-2*np.pi/3, 2*np.pi/3)
-#            alpha_1, alpha_2, Dalpha_1, Dalpha_2 = self.__prescribedAngle(t+self.time, position = None)
-#            self.shape = np.array([alpha_1, alpha_2])
-#            self.shapechange = np.array([Dalpha_1,Dalpha_2])
+            # ------------------------------------------------------------------------
+            """Used only when manually prescribing the shape change:""""
+            # alpha_1, alpha_2, Dalpha_1, Dalpha_2 = self.__prescribedAngle(t+self.time, position = None)
+            # self.shape = np.array([alpha_1, alpha_2])
+            # self.shapechange = np.array([Dalpha_1,Dalpha_2])
+            # ------------------------------------------------------------------------
             self.pos = var
             a1 = self.a[1]
             a2 = self.a[2]
-            
             beta_m = self.pos[2]
+            # 2D transformation matrix
             Q = np.array([[np.cos(beta_m), -np.sin(beta_m)],
                 [np.sin(beta_m), np.cos(beta_m)]])
+            # matrices below are defined a little different than what are given in the paper,
+            # but eventually V@M gives the locked mass matrix and V@eta gives the coupling matrix
             V = self.__V()
             M = self.__M()
             eta = np.zeros((9,2))
@@ -131,26 +114,24 @@ class FishEvasionEnv(gym.Env):
             eta[7,0] = -(J[1]+Ja[1])
             eta[5,1] = a2*(m[2]+ma2[2])
             eta[8,1] = (J[2]+Ja[2])
-            A = -np.linalg.solve(V@M, V@eta);
+            A = -np.linalg.solve(V@M, V@eta)
+            # equations of motions:
             vel = np.block([[Q, np.zeros((2,1))],[0,0,1]])@A@np.array([[Dalpha_1],[Dalpha_2]]).reshape((-1,))
             self.vel = vel
             return vel 
-    def __added_mass(self):
+    def __added_mass(self):                            # compute the added mass
         a = self.a*2/2
         b = self.b*2/2
         c = self.c*2/2
-#        print(a[1],b[1],c[1])
         abc = a*b*c
         factor = np.sum(abc)
         def delta(lam,a,b,c):
             return np.sqrt((a**2+lam)*(b**2+lam)*(c**2+lam))
-#        delta = lambda lam,a,b,c: np.sqrt((a**2+lam)*(b**2+lam)*(c**2+lam))
         def integrand_alpha(lam,a,b,c):
             return 1/(a**2+lam)/delta(lam,a,b,c)
         def integrand_beta(lam,a,b,c):
             return 1/(b**2+lam)/delta(lam,a,b,c)
-#        integrand_alpha = lambda lam,a,b,c: 1/(a**2+lam)/delta(lam,a,b,c)
-#        integrand_beta = lambda lam,a,b,c: 1/(b**2+lam)/delta(lam,a,b,c)
+
         alpha = np.zeros_like(a)
         beta = np.zeros_like(a)
         ma1 = np.zeros_like(a)
@@ -169,22 +150,20 @@ class FishEvasionEnv(gym.Env):
         self.ma1 = ma1
         self.ma2 = ma2
         self.Ja = Ja
-    def __initialConfig(self,mode, init_num):
-
-#        print(mode)
-#        print(init_num)
+    def __initialConfig(self,mode, init_num):                    # get the initial configuration of the fish
         X, Y, theta = 0, 0, np.random.rand()*2*np.pi-np.pi
         Alpha_1, Alpha_2 = np.random.rand()*2*np.pi/3 - np.pi/3, np.random.rand()*2*np.pi/3 - np.pi/3
-
-#        Alpha_1, Alpha_2,_ ,_ = self.__prescribedAngle(0, position = None)
+        
+        # if manually prescribing the shape change:
+        # Alpha_1, Alpha_2,_ ,_ = self.__prescribedAngle(0, position = None)
         return np.array([X, Y, theta]), np.array([Alpha_1, Alpha_2])
     def __M(self):
+        matrix
         m, ma1, ma2, J, Ja = self.m, self.ma1, self.ma2, self.J, self.Ja
         a = self.a
         alpha_1 = self.shape[0]
         alpha_2 = self.shape[1]
 
-        
         matrixM = np.zeros((9,3))
         
         matrixM[0,:] = np.array([m[0]+ma1[0], 0, 0])
@@ -209,8 +188,8 @@ class FishEvasionEnv(gym.Env):
         matrixV[2,6:9] = [1,1,1]
         return matrixV
     def __prescribedAngle(self,time, position = None):
+        # Used when manually precribing the shape change (disregarding the RL policy, mainly for test)
         """Experimental fitting path"""
-
 #        a0 =       17.94
 #        a1 =      -1.059
 #        b1 =       23.23
@@ -248,25 +227,21 @@ class FishEvasionEnv(gym.Env):
         return alpha_1, alpha_2, Dalpha_1, Dalpha_2
     def __terminal(self):
         return 0
-    def reset(self,beta0 = None, shape = None,straight = False):
-#        print(Fore.RED + 'RESET FISH') 
-#        print(Style.RESET_ALL)
+    def reset(self,beta0 = None, shape = None,straight = False):   # reset the environment setting
         self.pos, self.shape = self.__initialConfig(1,1)
         if beta0 != None:
             self.pos[-1] = beta0
         if shape is not None:
             self.shape = shape
-        if straight:
+        if straight:                 # used in policy tests
             self.shape = np.array([0,0])
         self.vel = np.zeros_like(self.pos)
         self.shapechange = np.zeros_like(self.shape)
         self.time = 0
         return self._get_obs()
 
-    def _get_obs(self):
-#        print(self.shape)
+    def _get_obs(self):                 # get the orientation (reltative to the targeted direction) and the shape
         return np.concatenate([np.array([self.pos[-1]]),self.shape])
-#        return np.array(self.shape)
 
     def render(self, mode='human'):
         from gym.envs.classic_control import rendering
@@ -302,7 +277,8 @@ class FishEvasionEnv(gym.Env):
             Viewer.add_onetime(geom)
             return geom
         
-        
+        # ------------------------------------------------------------------------
+        # size and position of the fish
         a,b,c = self.a,self.b,self.c
         x,y,theta = self.pos
         alpha_1, alpha_2 = self.shape
@@ -313,21 +289,26 @@ class FishEvasionEnv(gym.Env):
         y2 = y + np.sin(theta[0])*a[0] + np.sin(theta[2])*a[2]
         x = np.array([x,x1,x2])
         y = np.array([y,y1,y2])
+        # ------------------------------------------------------------------------
         from gym.envs.classic_control import rendering
         
+        # create the image if it has not been done
         if self.viewer is None:
             self.viewer = rendering.Viewer(1000,200)
             background = draw_lasting_circle(self.viewer,radius=100, res=10)
-#            background.set_color(.8,.9,.99)
             background.set_color(1.,1.,1.)
         
+        # set viewer size
         bound = 4
         self.viewer.set_bounds(-bound+2,bound+4,-bound/4,bound/4)
-
+        
+        """draw two axes"""
         axisX = self.viewer.draw_line((-1000., 0), (1000., 0))
         axisY = self.viewer.draw_line((0,-1000.), (0,1000.))
         axisX.set_color(.5,.5,.5)
         axisY.set_color(.5,.5,.5)
+
+        """draw a fish"""
         for i in range(3):
             link = draw_ellipse(self.viewer,major=self.a[i], minor=self.b[i], res=30, filled=True)
             lkTrans = rendering.Transform(rotation=theta[i],translation=(x[i],y[i]))
@@ -342,7 +323,8 @@ class FishEvasionEnv(gym.Env):
             eye.add_attr(eyeTrans)
             eye.set_color(.6,.3,.4)
             
-            
+        # ------------------------------------------------------------------------
+        # interpolate a smooth shape of the fish
         Npts = 7*2
         headl = 1.3
         facel = .6
@@ -390,28 +372,20 @@ class FishEvasionEnv(gym.Env):
         reference = []
         for i in range(np.size(outout,0)):
             reference.append((outout[i,0],outout[i,1]))
-
-#        from scipy.interpolate import splprep, splev
-#        tck, u = splprep([referenceX, referenceY], s=0.05)
-#        out = splev(pnew, tck)
-#        for i in range(out[0].size):
-#            reference.append((out[0][i],out[1][i]))
+        # ------------------------------------------------------------------------
         
         fish = self.viewer.draw_polygon(reference, filled=False)
         fish.set_linewidth(2)
         fish.set_color(.5,.5,.5)
         
-        """trail"""
+        """draw a trail behind the fish"""
         if self.oldpos is not None:
-#            trail = draw_lasting_line(self.viewer, (self.oldpos[0],self.oldpos[1]), (self.pos[0],self.pos[1]))
-            trail = draw_lasting_circle(self.viewer, radius=0.02, res = 5)
+            trail = draw_lasting_circle(self.viewer, radius=0.015, res = 5)
             trTrans = rendering.Transform(translation=(np.sum(x)/3,np.sum(y)/3))
             trail.add_attr(trTrans)
             dx = self.pos[0]-self.oldpos[0]
             dy = self.pos[1]-self.oldpos[1]
-#            print((dx**2+dy**2)**0.1)
-            trail.set_color(2.2-(dx**2+dy**2)**0.1*4, 2.2-(dx**2+dy**2)**0.1*4, 2.2-(dx**2+dy**2)**0.1*4)
-#            trail.linewidth.stroke = 10
+            trail.set_color(0.3,0.3,0.65)
         return self.viewer.render(return_rgb_array = mode=='rgb_array')
 
     def close(self):
@@ -420,5 +394,5 @@ class FishEvasionEnv(gym.Env):
             self.viewer = None
     def set_t_step(self, t_step):
         self.dt = t_step
-#def angle_normalize(x):
-#    return (((x+np.pi) % (2*np.pi)) - np.pi)
+# def angle_normalize(x):
+#     return (((x+np.pi) % (2*np.pi)) - np.pi)
