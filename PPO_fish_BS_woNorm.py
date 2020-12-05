@@ -199,12 +199,6 @@ def main(k):
     running_reward = 0
     avg_length = 0
     time_step = 0
-    
-    # ------------------------------------------------------------------
-    # wrap angles about a given center
-    # def angle_normalize(x,center = 0):
-    #     return (((x+np.pi-center) % (2*np.pi)) - np.pi+center)
-    # ------------------------------------------------------------------
 
     # training loop
     for i_episode in range(1, max_episodes+1):
@@ -267,5 +261,6 @@ if __name__ == '__main__':
     for k in range(1,25):        
         main(k)
 
+# wrap angles about a given center
 def angle_normalize(x,center = 0):
     return (((x+np.pi-center) % (2*np.pi)) - np.pi+center)
