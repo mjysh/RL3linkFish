@@ -158,7 +158,6 @@ class FishEvasionEnv(gym.Env):
         # Alpha_1, Alpha_2,_ ,_ = self.__prescribedAngle(0, position = None)
         return np.array([X, Y, theta]), np.array([Alpha_1, Alpha_2])
     def __M(self):
-        matrix
         m, ma1, ma2, J, Ja = self.m, self.ma1, self.ma2, self.J, self.Ja
         a = self.a
         alpha_1 = self.shape[0]
