@@ -151,7 +151,7 @@ def main(k):
     if not os.path.exists(path):
         os.makedirs(path)
     ############## Hyperparameters ##############
-    # env_name = "fishEvasion-v0" # used when creating the en
+    env_name = "fishEvasion-v0" # used when creating the en
     render = False              # render the environment in training if true
     # solved_reward = 100         # stop training if avg_reward > solved_reward
     log_interval = 27           # print avg reward in the interval
