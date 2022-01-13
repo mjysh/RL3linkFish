@@ -67,14 +67,14 @@ class ActorCritic(nn.Module):
         return action.detach()
     
     def evaluate(self, state, action):   
-        action_mean = torch.squeeze(self.actor(state))
+        action_mean = self.actor(state)
         
         action_var = self.action_var.expand_as(action_mean)
         cov_mat = torch.diag_embed(action_var).to(device)
         
         dist = MultivariateNormal(action_mean, cov_mat)
         
-        action_logprobs = dist.log_prob(torch.squeeze(action))
+        action_logprobs = dist.log_prob(action)
         dist_entropy = dist.entropy()
         state_value = self.critic(state)
         
@@ -120,8 +120,8 @@ class PPO:
         # rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
         
         # convert list to tensor:
-        old_states = torch.squeeze(torch.stack(memory.states).to(device)).detach()
-        old_actions = torch.squeeze(torch.stack(memory.actions).to(device)).detach()
+        old_states = torch.squeeze(torch.stack(memory.states).to(device), dim = 1).detach()
+        old_actions = torch.squeeze(torch.stack(memory.actions).to(device), dim = 1).detach()
         old_logprobs = torch.squeeze(torch.stack(memory.logprobs)).to(device).detach()
         
         # Optimize policy for K epochs:
@@ -151,7 +151,7 @@ def main(k):
     if not os.path.exists(path):
         os.makedirs(path)
     ############## Hyperparameters ##############
-    env_name = "fishEvasion-v0" # used when creating the en
+    env_name = "fishEvasion-v0" # used when creating the environment with gym.make
     render = False              # render the environment in training if true
     # solved_reward = 100         # stop training if avg_reward > solved_reward
     log_interval = 27           # print avg reward in the interval
