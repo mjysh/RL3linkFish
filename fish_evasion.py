@@ -93,7 +93,7 @@ class FishEvasionEnv(gym.Env):
             Dalpha_1, Dalpha_2 = self.shapechange
             alpha_1, alpha_2 = np.clip(self.shape + self.shapechange*t,-2*np.pi/3, 2*np.pi/3)
             # ------------------------------------------------------------------------
-            """Used only when manually prescribing the shape change:""""
+            """Used only when manually prescribing the shape change:"""
             # alpha_1, alpha_2, Dalpha_1, Dalpha_2 = self.__prescribedAngle(t+self.time, position = None)
             # self.shape = np.array([alpha_1, alpha_2])
             # self.shapechange = np.array([Dalpha_1,Dalpha_2])
