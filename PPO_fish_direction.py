@@ -38,6 +38,7 @@ class ActorCritic(nn.Module):
                 nn.Linear(32, action_dim),
                 nn.Tanh()
                 )
+        
         # critic
         self.critic = nn.Sequential(
                 nn.Linear(state_dim, 64),
@@ -46,8 +47,9 @@ class ActorCritic(nn.Module):
                 nn.Tanh(),
                 nn.Linear(32, 1)
                 )
-        self.action_var = torch.full((action_dim,), action_std*action_std).to(device)
         
+        self.action_var = torch.full((action_dim,), action_std*action_std).to(device)
+
     def forward(self):
         raise NotImplementedError
     
@@ -115,7 +117,7 @@ class PPO:
         # ------------------------------------------------------------------
         
         
-        rewards = torch.tensor(rewards).to(device)
+        rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
         # Normalizing the rewards:
         # rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
         
@@ -207,13 +209,12 @@ def main(k):
         # beta0 = angle_normalize(i_episode*3,center = 0)
         # print(beta0)
         # ------------------------------------------------------------------
-        state = env.reset()
+        observation = env.reset()
         for t in range(max_timesteps):
             time_step +=1
             # Running policy_old:
-            action = ppo.select_action(state, memory)
-            state, reward, done, _ = env.step(action)
-
+            action = ppo.select_action(observation, memory)
+            observation, reward, done,_, _ = env.step(action)
             # Storing reward and is_terminals:
             memory.rewards.append(reward)
             memory.is_terminals.append(done)
